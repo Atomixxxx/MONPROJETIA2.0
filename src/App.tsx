@@ -17,7 +17,7 @@ import {
 import MonacoEditor from './components/MonacoEditor';
 import ProjectSidebar from './components/ProjectSidebar';
 import ExecutionPanel from './components/ExecutionPanel';
-import ChatPanel from './components/ChatPanel';
+import { ChatPanel } from './components/ChatPanel';
 import TerminalPanel from './components/TerminalPanel';
 import ConnectionStatus from './components/ConnectionStatus';
 import ProjectTemplates from './components/ProjectTemplates';
