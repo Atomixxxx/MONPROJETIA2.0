@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  # Backend FastAPI
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./collaborative_platform.db
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+      - WS_HEARTBEAT_INTERVAL=5000
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # Frontend React (optionnel, pour production)
+  frontend:
+    build:
+      context: ../
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+    environment:
+      - VITE_API_URL=http://localhost:8000
+      - VITE_WS_URL=ws://localhost:8000/ws
+      - VITE_ENABLE_MOCK=false
+
+  # PostgreSQL (optionnel, remplace SQLite)
+  # postgres:
+  #   image: postgres:15
+  #   environment:
+  #     - POSTGRES_DB=collaborative_platform
+  #     - POSTGRES_USER=user
+  #     - POSTGRES_PASSWORD=password
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   ports:
+  #     - "5432:5432"
+
+  # Redis (optionnel, pour la mise en cache)
+  # redis:
+  #   image: redis:7-alpine
+  #   ports:
+  #     - "6379:6379"
+
+# volumes:
+#   postgres_data:
