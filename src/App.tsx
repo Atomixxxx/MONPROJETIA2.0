@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
+import { Tooltip } from './components/Tooltip';
 import { MonacoEditor } from './components/MonacoEditor';
 import { ProjectSidebar } from './components/ProjectSidebar';
 import { ExecutionPanel } from './components/ExecutionPanel';
@@ -7,11 +8,25 @@ import { TerminalPanel } from './components/TerminalPanel';
 import { ConnectionStatus } from './components/ConnectionStatus';
 import { ChatPanel } from './components/ChatPanel';
 import { ProjectTemplates } from './components/ProjectTemplates';
+import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { StorageService } from './services/storage';
 import { CodeExecutionService } from './services/codeExecution';
 import { TemplateService } from './services/templates';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Project, ProjectFile, ExecutionResult, EditorSettings, ProjectTemplate } from './types';
+import { 
+  Play, 
+  Terminal as TerminalIcon, 
+  MessageSquare, 
+  Code, 
+  Folders, 
+  Settings,
+  Save,
+  Zap,
+  Search,
+  Home,
+  X
+} from 'lucide-react';
 
 const storage = new StorageService();
 const codeExecution = new CodeExecutionService();
@@ -28,6 +43,10 @@ function App() {
   const [showChatPanel, setShowChatPanel] = useState(false);
   const [showTerminalPanel, setShowTerminalPanel] = useState(false);
   const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcuts] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [notification, setNotification] = useState<{message: string, type: 'success' | 'error' | 'info'} | null>(null);
   const [pendingProjectName, setPendingProjectName] = useState('');
 
   const userId = 'user-' + uuidv4();
@@ -51,6 +70,82 @@ function App() {
     initializeApp();
   }, []);
 
+  // Raccourcis clavier
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Ctrl/Cmd + S : Sauvegarder
+      if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+        e.preventDefault();
+        if (currentCode && activeFile) {
+          handleSave(currentCode);
+          showNotification('Fichier sauvegardé', 'success');
+        }
+      }
+      
+      // Ctrl/Cmd + Enter : Exécuter
+      if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
+        e.preventDefault();
+        if (currentCode) {
+          handleExecute(currentCode, activeFile?.language || 'python');
+          setShowExecutionPanel(true);
+        }
+      }
+      
+      // Ctrl/Cmd + ` : Terminal
+      if ((e.ctrlKey || e.metaKey) && e.key === '`') {
+        e.preventDefault();
+        setShowTerminalPanel(!showTerminalPanel);
+      }
+      
+      // Ctrl/Cmd + J : Chat
+      if ((e.ctrlKey || e.metaKey) && e.key === 'j') {
+        e.preventDefault();
+        setShowChatPanel(!showChatPanel);
+      }
+      
+      // Ctrl/Cmd + 1 : Console
+      if ((e.ctrlKey || e.metaKey) && e.key === '1') {
+        e.preventDefault();
+        setShowExecutionPanel(!showExecutionPanel);
+      }
+      
+      // Ctrl/Cmd + B : Sidebar
+      if ((e.ctrlKey || e.metaKey) && e.key === 'b') {
+        e.preventDefault();
+        setSidebarCollapsed(!sidebarCollapsed);
+      }
+      
+      // F1 : Aide
+      if (e.key === 'F1') {
+        e.preventDefault();
+        setShowKeyboardShortcuts(true);
+      }
+      
+      // Escape : Fermer modales
+      if (e.key === 'Escape') {
+        if (showKeyboardShortcuts) setShowKeyboardShortcuts(false);
+        if (showTemplateModal) setShowTemplateModal(false);
+        if (notification) setNotification(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [currentCode, activeFile, showTerminalPanel, showChatPanel, showExecutionPanel, sidebarCollapsed, showKeyboardShortcuts, showTemplateModal, notification]);
+
+  const showNotification = (message: string, type: 'success' | 'error' | 'info') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const withLoading = async (fn: () => Promise<any>) => {
+    setIsLoading(true);
+    try {
+      await fn();
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const loadProjects = async () => {
     const storedProjects = await storage.getProjects();
     if (storedProjects.length === 0) {
@@ -89,7 +184,9 @@ function App() {
   };
 
   const handleSave = async (content: string) => {
-    if (activeFile && activeProject) {
+    if (!activeFile || !activeProject) return;
+    
+    await withLoading(async () => {
       const updatedFile = { ...activeFile, content };
       await storage.saveFile(activeProject.id, updatedFile);
       
@@ -106,7 +203,9 @@ function App() {
         type: 'file_save',
         payload: { fileId: activeFile.id, content }
       });
-    }
+      
+      showNotification('Fichier sauvegardé avec succès', 'success');
+    });
   };
 
   const handleCreateProject = () => {
@@ -205,7 +304,13 @@ function App() {
   };
 
   const handleExecute = async (code: string, language: string) => {
+    if (!code.trim()) {
+      showNotification('Aucun code à exécuter', 'error');
+      return;
+    }
+    
     setIsExecuting(true);
+    showNotification('Exécution en cours...', 'info');
     try {
       const result = await codeExecution.executeCode(code, language);
       await storage.saveExecutionResult(result);
@@ -215,8 +320,14 @@ function App() {
         type: 'execution_result',
         payload: result
       });
+      
+      showNotification(
+        result.status === 'success' ? 'Code exécuté avec succès' : 'Erreur lors de l\'exécution',
+        result.status === 'success' ? 'success' : 'error'
+      );
     } catch (error) {
       console.error('Execution error:', error);
+      showNotification('Erreur lors de l\'exécution', 'error');
     } finally {
       setIsExecuting(false);
     }
@@ -404,36 +515,269 @@ function App() {
   };
 
   return (
-    <div className="h-screen bg-gray-900 text-gray-300 flex flex-col">
+    <div className="h-screen bg-gray-900 text-gray-300 flex flex-col font-inter antialiased">
       {/* Header */}
-      <header className="flex items-center justify-between p-4 bg-gray-800 border-b border-gray-700">
+      <header className="flex items-center justify-between px-6 py-3 bg-gray-800 border-b border-gray-700 shadow-lg">
         <div className="flex items-center gap-4">
-          <h1 className="text-xl font-bold text-white">🚀 Plateforme IA Collaborative</h1>
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
+              <Code className="w-5 h-5 text-white" />
+            </div>
+            <h1 className="text-xl font-bold text-white">Plateforme IA Collaborative</h1>
+          </div>
           <ConnectionStatus isConnected={isConnected} users={users} />
         </div>
         
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setShowExecutionPanel(!showExecutionPanel)}
-            className={`px-4 py-2 rounded transition-colors ${
-              showExecutionPanel 
-                ? 'bg-blue-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
-          >
-            Console
-          </button>
+        <div className="flex items-center gap-3">
+          <div className="flex items-center bg-gray-700 rounded-lg p-1">
+            <Tooltip content="Console (Ctrl+1)">
+              <button
+                onClick={() => setShowExecutionPanel(!showExecutionPanel)}
+                className={`px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 ${
+                  showExecutionPanel 
+                    ? 'bg-blue-600 text-white shadow-lg' 
+                    : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                }`}
+              >
+                <Play className="w-4 h-4" />
+                <span className="text-sm font-medium">Console</span>
+              </button>
+            </Tooltip>
+            
+            <Tooltip content="Terminal (Ctrl+`)">
+              <button
+                onClick={() => setShowTerminalPanel(!showTerminalPanel)}
+                className={`px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 ${
+                  showTerminalPanel 
+                    ? 'bg-green-600 text-white shadow-lg' 
+                    : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                }`}
+              >
+                <TerminalIcon className="w-4 h-4" />
+                <span className="text-sm font-medium">Terminal</span>
+              </button>
+            </Tooltip>
+            
+            <Tooltip content="Chat IA (Ctrl+J)">
+              <button
+                onClick={() => setShowChatPanel(!showChatPanel)}
+                className={`px-3 py-2 rounded-md transition-all duration-200 flex items-center gap-2 ${
+                  showChatPanel 
+                    ? 'bg-purple-600 text-white shadow-lg' 
+                    : 'text-gray-300 hover:bg-gray-600 hover:text-white'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span className="text-sm font-medium">Chat IA</span>
+              </button>
+            </Tooltip>
+          </div>
           
+          <div className="flex items-center gap-2">
+            <Tooltip content="Raccourcis (F1)">
+              <button
+                onClick={() => setShowKeyboardShortcuts(true)}
+                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <Settings className="w-4 h-4" />
+              </button>
+            </Tooltip>
+            
+            <Tooltip content="Masquer sidebar (Ctrl+B)">
+              <button
+                onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+                className="p-2 hover:bg-gray-700 rounded-lg transition-colors"
+              >
+                <Folders className="w-4 h-4" />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      </header>
+
+      {/* Notification */}
+      {notification && (
+        <div className={`absolute top-20 right-6 z-50 px-4 py-3 rounded-lg shadow-lg border-l-4 flex items-center gap-3 animate-slide-in ${
+          notification.type === 'success' ? 'bg-green-900/90 border-green-500 text-green-100' :
+          notification.type === 'error' ? 'bg-red-900/90 border-red-500 text-red-100' :
+          'bg-blue-900/90 border-blue-500 text-blue-100'
+        }`}>
+          {notification.type === 'success' && <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>}
+          {notification.type === 'error' && <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></div>}
+          {notification.type === 'info' && <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse"></div>}
+          <span className="text-sm font-medium">{notification.message}</span>
           <button
-            onClick={() => setShowTerminalPanel(!showTerminalPanel)}
-            className={`px-4 py-2 rounded transition-colors ${
-              showTerminalPanel 
-                ? 'bg-green-600 text-white' 
-                : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-            }`}
+            onClick={() => setNotification(null)}
+            className="ml-2 hover:bg-white/10 rounded p-1"
           >
-            Terminal
+            <X className="w-3 h-3" />
           </button>
+        </div>
+      )}
+
+      {/* Loading overlay */}
+      {isLoading && (
+        <div className="absolute inset-0 bg-black/50 flex items-center justify-center z-40">
+          <div className="bg-gray-800 p-4 rounded-lg flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+            <span className="text-white">Chargement...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Breadcrumb */}
+      <div className="px-6 py-2 bg-gray-800/50 border-b border-gray-700/50 text-sm">
+        <div className="flex items-center gap-2 text-gray-400">
+          <Home className="w-4 h-4" />
+          <span>/</span>
+          {activeProject && (
+            <>
+              <span className="text-gray-300">{activeProject.name}</span>
+              <span>/</span>
+            </>
+          )}
+          {activeFile && (
+            <span className="text-white font-medium">{activeFile.name}</span>
+          )}
+        </div>
+      </div>
+
+      {/* Main Content */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Top Section */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Chat Panel */}
+          {showChatPanel && (
+            <div className="w-80 border-r border-gray-700 flex-shrink-0 animate-slide-in-left">
+              <ChatPanel
+                onExecuteCommand={handleChatCommand}
+                activeProject={activeProject}
+                activeFile={activeFile}
+                currentCode={currentCode}
+                className="h-full"
+              />
+            </div>
+          )}
+
+          {/* Sidebar */}
+          {!sidebarCollapsed && (
+            <div className="w-64 border-r border-gray-700 flex-shrink-0 animate-slide-in-left">
+              <ProjectSidebar
+                projects={projects}
+                activeProject={activeProject}
+                activeFile={activeFile}
+                onProjectSelect={handleProjectSelect}
+                onFileSelect={handleFileSelect}
+                onCreateProject={handleCreateProject}
+                onCreateFile={handleCreateFile}
+                onDeleteProject={handleDeleteProject}
+                onDeleteFile={handleDeleteFile}
+                className="h-full"
+              />
+            </div>
+          )}
+
+          {/* Editor */}
+          <div className="flex-1 min-w-0 relative">
+            <MonacoEditor
+              file={activeFile}
+              onContentChange={handleContentChange}
+              onSave={handleSave}
+              settings={editorSettings}
+              className="h-full"
+            />
+            
+            {/* Quick Actions */}
+            <div className="absolute bottom-4 right-4 flex items-center gap-2">
+              <Tooltip content="Sauvegarder (Ctrl+S)">
+                <button
+                  onClick={() => handleSave(currentCode)}
+                  disabled={!currentCode || !activeFile}
+                  className="p-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 rounded-lg shadow-lg transition-all duration-200"
+                >
+                  <Save className="w-4 h-4 text-white" />
+                </button>
+              </Tooltip>
+              
+              <Tooltip content="Exécuter (Ctrl+Enter)">
+                <button
+                  onClick={() => {
+                    handleExecute(currentCode, activeFile?.language || 'python');
+                    setShowExecutionPanel(true);
+                  }}
+                  disabled={!currentCode || isExecuting}
+                  className="p-2 bg-green-600 hover:bg-green-700 disabled:opacity-50 rounded-lg shadow-lg transition-all duration-200"
+                >
+                  <Zap className="w-4 h-4 text-white" />
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+        </div>
+
+        {/* Bottom Panels */}
+        {(showExecutionPanel || showTerminalPanel) && (
+          <div className="border-t border-gray-700 flex overflow-hidden animate-slide-in-up" style={{ height: '320px' }}>
+            {showExecutionPanel && (
+              <div className={`${showTerminalPanel ? 'flex-1 border-r border-gray-700' : 'flex-1'}`}>
+                <ExecutionPanel
+                  onExecute={handleExecute}
+                  onStop={handleStopExecution}
+                  currentCode={currentCode}
+                  currentLanguage={activeFile?.language || 'python'}
+                  isExecuting={isExecuting}
+                  results={executionResults}
+                  className="h-full"
+                />
+              </div>
+            )}
+            
+            {showTerminalPanel && (
+              <div className={`${showExecutionPanel ? 'flex-1' : 'flex-1'}`}>
+                <TerminalPanel
+                  activeProject={activeProject}
+                  onRunCommand={handleRunTerminalCommand}
+                  onClose={() => setShowTerminalPanel(false)}
+                  className="h-full"
+                />
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Modals */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="animate-scale-in">
+            <ProjectTemplates
+              onSelectTemplate={(template, name) => {
+                handleCreateProjectFromTemplate(template, name);
+                setShowTemplateModal(false);
+                setPendingProjectName('');
+                showNotification('Projet créé avec succès', 'success');
+              }}
+              onClose={() => {
+                setShowTemplateModal(false);
+                setPendingProjectName('');
+              }}
+            />
+          </div>
+        </div>
+      )}
+      
+      {showKeyboardShortcuts && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-fade-in">
+          <div className="animate-scale-in">
+            <KeyboardShortcuts onClose={() => setShowKeyboardShortcuts(false)} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
           
           <button
             onClick={() => setShowChatPanel(!showChatPanel)}
