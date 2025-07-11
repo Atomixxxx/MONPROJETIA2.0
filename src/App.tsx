@@ -71,8 +71,17 @@ function App() {
   });
   
   const { isConnected, sendMessage, users } = useWebSocket('user-' + Date.now());
-  const { saveStatus } = useAutoSave(currentFile, code, handleSave, editorSettings.autoSaveInterval);
   const notificationTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
+
+  // Move handleSave function definition before useAutoSave hook
+  const handleSave = () => {
+    if (currentFile) {
+      // Save logic here
+      showNotification('Fichier sauvegardé', 'success');
+    }
+  };
+
+  const { saveStatus } = useAutoSave(currentFile, code, handleSave, editorSettings.autoSaveInterval);
 
   // Keyboard shortcuts
   useEffect(() => {
@@ -146,13 +155,6 @@ function App() {
     if (notificationTimeoutRef.current[id]) {
       clearTimeout(notificationTimeoutRef.current[id]);
       delete notificationTimeoutRef.current[id];
-    }
-  };
-
-  const handleSave = () => {
-    if (currentFile) {
-      // Save logic here
-      showNotification('Fichier sauvegardé', 'success');
     }
   };
 
