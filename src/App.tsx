@@ -25,7 +25,7 @@ import { KeyboardShortcuts } from './components/KeyboardShortcuts';
 import { Tooltip } from './components/Tooltip';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAutoSave } from './hooks/useAutoSave';
-import { Project, FileNode } from './types';
+import { Project, FileNode, ExecutionResult } from './types';
 
 // Notification types
 interface Notification {
@@ -40,7 +40,7 @@ function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [code, setCode] = useState('print("Hello, World!")');
   const [currentFile, setCurrentFile] = useState<FileNode | null>(null);
-  const [executionResult, setExecutionResult] = useState('');
+  const [executionResults, setExecutionResults] = useState<ExecutionResult[]>([]);
   const [isExecuting, setIsExecuting] = useState(false);
   const [activePanel, setActivePanel] = useState<'console' | 'terminal' | 'chat'>('console');
   const [showTemplateModal, setShowTemplateModal] = useState(false);
@@ -52,7 +52,7 @@ function App() {
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [terminalMinimized, setTerminalMinimized] = useState(false);
   
-  const { isConnected, sendMessage } = useWebSocket();
+  const { isConnected, sendMessage, users } = useWebSocket('user-' + Date.now());
   const { saveStatus } = useAutoSave(code, currentFile);
   const notificationTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
@@ -142,18 +142,45 @@ function App() {
     if (!code.trim()) return;
     
     setIsExecuting(true);
-    setExecutionResult('');
     showNotification('Exécution du code...', 'info');
 
+    const startTime = Date.now();
+    const executionId = Date.now().toString();
+    
     try {
       // Simulate code execution
       await new Promise(resolve => setTimeout(resolve, 1000));
-      const result = `Résultat de l'exécution:\n${code}`;
-      setExecutionResult(result);
+      const endTime = Date.now();
+      
+      const result: ExecutionResult = {
+        id: executionId,
+        code: code,
+        output: `Résultat de l'exécution:\n${code}`,
+        errors: [],
+        duration: endTime - startTime,
+        timestamp: new Date().toISOString(),
+        language: currentFile?.name.split('.').pop() || 'python',
+        status: 'completed'
+      };
+      
+      setExecutionResults(prev => [...prev, result]);
       showNotification('Code exécuté avec succès', 'success');
     } catch (error) {
+      const endTime = Date.now();
       const errorMessage = error instanceof Error ? error.message : 'Erreur inconnue';
-      setExecutionResult(`Erreur: ${errorMessage}`);
+      
+      const result: ExecutionResult = {
+        id: executionId,
+        code: code,
+        output: '',
+        errors: [errorMessage],
+        duration: endTime - startTime,
+        timestamp: new Date().toISOString(),
+        language: currentFile?.name.split('.').pop() || 'python',
+        status: 'error'
+      };
+      
+      setExecutionResults(prev => [...prev, result]);
       showNotification('Erreur lors de l\'exécution', 'error');
     } finally {
       setIsExecuting(false);
@@ -194,7 +221,7 @@ function App() {
             <FileText className="w-6 h-6 text-blue-400" />
             <h1 className="text-xl font-bold">Plateforme IA Collaborative</h1>
           </div>
-          <ConnectionStatus isConnected={isConnected} />
+          <ConnectionStatus isConnected={isConnected} users={users} />
         </div>
         
         {/* Breadcrumb */}
@@ -366,9 +393,11 @@ function App() {
             {/* Console Panel */}
             <div className="flex-1">
               <ExecutionPanel
-                result={executionResult}
+                results={executionResults}
+                currentCode={code}
+                currentLanguage={currentFile?.name.split('.').pop() || 'python'}
                 isExecuting={isExecuting}
-                onExecute={handleExecute}
+                onStop={() => setIsExecuting(false)}
               />
             </div>
           </div>
