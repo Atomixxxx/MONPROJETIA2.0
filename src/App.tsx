@@ -27,6 +27,16 @@ import { useWebSocket } from './hooks/useWebSocket';
 import { useAutoSave } from './hooks/useAutoSave';
 import { Project, FileNode, ExecutionResult } from './types';
 
+// Editor settings interface
+interface EditorSettings {
+  autoSaveInterval: number;
+  fontSize: number;
+  tabSize: number;
+  wordWrap: boolean;
+  minimap: boolean;
+  lineNumbers: boolean;
+}
+
 // Notification types
 interface Notification {
   id: string;
@@ -51,6 +61,14 @@ function App() {
   const [terminalHeight, setTerminalHeight] = useState(320);
   const [terminalVisible, setTerminalVisible] = useState(false);
   const [terminalMinimized, setTerminalMinimized] = useState(false);
+  const [editorSettings, setEditorSettings] = useState<EditorSettings>({
+    autoSaveInterval: 5000,
+    fontSize: 14,
+    tabSize: 2,
+    wordWrap: true,
+    minimap: true,
+    lineNumbers: true
+  });
   
   const { isConnected, sendMessage, users } = useWebSocket('user-' + Date.now());
   const { saveStatus } = useAutoSave(code, currentFile);
@@ -360,6 +378,7 @@ function App() {
               onChange={setCode}
               language="python"
               theme="vs-dark"
+              settings={editorSettings}
             />
             
             {/* Floating Action Buttons */}
