@@ -14,15 +14,15 @@ import {
   PanelLeftClose,
   PanelLeft
 } from 'lucide-react';
-import MonacoEditor from './components/MonacoEditor';
-import ProjectSidebar from './components/ProjectSidebar';
-import ExecutionPanel from './components/ExecutionPanel';
+import { MonacoEditor } from './components/MonacoEditor';
+import { ProjectSidebar } from './components/ProjectSidebar';
+import { ExecutionPanel } from './components/ExecutionPanel';
 import { ChatPanel } from './components/ChatPanel';
-import TerminalPanel from './components/TerminalPanel';
-import ConnectionStatus from './components/ConnectionStatus';
-import ProjectTemplates from './components/ProjectTemplates';
-import KeyboardShortcuts from './components/KeyboardShortcuts';
-import Tooltip from './components/Tooltip';
+import { TerminalPanel } from './components/TerminalPanel';
+import { ConnectionStatus } from './components/ConnectionStatus';
+import { ProjectTemplates } from './components/ProjectTemplates';
+import { KeyboardShortcuts } from './components/KeyboardShortcuts';
+import { Tooltip } from './components/Tooltip';
 import { useWebSocket } from './hooks/useWebSocket';
 import { useAutoSave } from './hooks/useAutoSave';
 import { Project, FileNode } from './types';
