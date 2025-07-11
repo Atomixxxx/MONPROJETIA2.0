@@ -71,7 +71,7 @@ function App() {
   });
   
   const { isConnected, sendMessage, users } = useWebSocket('user-' + Date.now());
-  const { saveStatus } = useAutoSave(code, currentFile);
+  const { saveStatus } = useAutoSave(currentFile, code, handleSave, editorSettings.autoSaveInterval);
   const notificationTimeoutRef = useRef<{ [key: string]: NodeJS.Timeout }>({});
 
   // Keyboard shortcuts
@@ -298,7 +298,7 @@ function App() {
             <ProjectSidebar
               projects={projects}
               currentProject={currentProject}
-              onSelectProject={setCurrentProject}
+              onProjectSelect={setCurrentProject}
               onCreateProject={() => setShowTemplateModal(true)}
               onSelectFile={(file) => {
                 setCurrentFile(file);
