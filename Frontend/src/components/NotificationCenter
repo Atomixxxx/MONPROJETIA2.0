@@ -1,0 +1,168 @@
+import React, { useState, useEffect, useCallback, createContext, useContext } from 'react';
+import { NotificationProps } from '../types';
+import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
+import { generateId } from '../utils';
+
+// Context pour les notifications
+interface NotificationContextType {
+  addNotification: (message: string, type: NotificationProps['type'], duration?: number) => void;
+  removeNotification: (id: string) => void;
+}
+
+const NotificationContext = createContext<NotificationContextType>({
+  addNotification: () => {},
+  removeNotification: () => {},
+});
+
+// Hook pour utiliser les notifications
+export const useNotification = () => {
+  const context = useContext(NotificationContext);
+  if (!context) {
+    // Fallback si le context n'est pas disponible
+    return {
+      addNotification: (message: string, type: NotificationProps['type']) => {
+        console.log(`[${type.toUpperCase()}] ${message}`);
+      },
+      removeNotification: () => {}
+    };
+  }
+  return context;
+};
+
+// Composant principal NotificationCenter
+interface NotificationCenterProps {
+  notifications?: NotificationProps[];
+  onRemove?: (id: string) => void;
+}
+
+export const NotificationCenter: React.FC<NotificationCenterProps> = ({ 
+  notifications = [], 
+  onRemove = () => {} 
+}) => {
+  if (notifications.length === 0) return null;
+
+  const getIcon = (type: NotificationProps['type']) => {
+    switch (type) {
+      case 'success':
+        return React.createElement(CheckCircle, { size: 20, className: "text-green-400" });
+      case 'error':
+        return React.createElement(AlertCircle, { size: 20, className: "text-red-400" });
+      case 'warning':
+        return React.createElement(AlertTriangle, { size: 20, className: "text-yellow-400" });
+      case 'info':
+      default:
+        return React.createElement(Info, { size: 20, className: "text-blue-400" });
+    }
+  };
+
+  const getStyleClasses = (type: NotificationProps['type']) => {
+    switch (type) {
+      case 'success':
+        return 'bg-green-900/80 border-green-500/50 text-green-100';
+      case 'error':
+        return 'bg-red-900/80 border-red-500/50 text-red-100';
+      case 'warning':
+        return 'bg-yellow-900/80 border-yellow-500/50 text-yellow-100';
+      case 'info':
+      default:
+        return 'bg-blue-900/80 border-blue-500/50 text-blue-100';
+    }
+  };
+
+  return React.createElement('div', { 
+    className: "fixed top-4 right-4 z-50 space-y-2 max-w-sm" 
+  }, 
+    notifications.map((notification) =>
+      React.createElement('div', {
+        key: notification.id,
+        className: `
+          ${getStyleClasses(notification.type)}
+          backdrop-filter backdrop-blur-lg
+          border rounded-lg p-4 shadow-lg
+          animate-slide-in-right
+          transition-all duration-300 ease-out
+        `
+      }, 
+        React.createElement('div', { className: "flex items-start gap-3" },
+          React.createElement('div', { className: "flex-shrink-0 mt-0.5" }, getIcon(notification.type)),
+          React.createElement('div', { className: "flex-1 min-w-0" },
+            React.createElement('p', { className: "text-sm font-medium leading-5" }, notification.message),
+            React.createElement('p', { className: "text-xs opacity-75 mt-1" }, notification.timestamp.toLocaleTimeString())
+          ),
+          React.createElement('button', {
+            onClick: () => onRemove(notification.id),
+            className: "flex-shrink-0 p-1 rounded-md hover:bg-white/10 transition-colors"
+          }, React.createElement(X, { size: 16, className: "opacity-60 hover:opacity-100" }))
+        )
+      )
+    )
+  );
+};
+
+// Provider pour les notifications
+export const NotificationProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [notifications, setNotifications] = useState<NotificationProps[]>([]);
+
+  const addNotification = useCallback((message: string, type: NotificationProps['type'], duration = 5000) => {
+    const notification: NotificationProps = {
+      id: generateId(),
+      message,
+      type,
+      timestamp: new Date(),
+      duration,
+    };
+
+    setNotifications(prev => [...prev, notification]);
+
+    // Auto-remove après la durée spécifiée
+    if (duration > 0) {
+      setTimeout(() => {
+        removeNotification(notification.id);
+      }, duration);
+    }
+  }, []);
+
+  const removeNotification = useCallback((id: string) => {
+    setNotifications(prev => prev.filter(notif => notif.id !== id));
+  }, []);
+
+  return React.createElement(NotificationContext.Provider, 
+    { value: { addNotification, removeNotification } },
+    children,
+    React.createElement(NotificationCenter, { 
+      notifications, 
+      onRemove: removeNotification 
+    })
+  );
+};
+
+// Styles CSS à injecter
+const additionalStyles = `
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s ease-out;
+}
+`;
+
+// Injecter les styles automatiquement
+if (typeof document !== 'undefined') {
+  const existingStyle = document.getElementById('notification-styles');
+  if (!existingStyle) {
+    const styleElement = document.createElement('style');
+    styleElement.id = 'notification-styles';
+    styleElement.textContent = additionalStyles;
+    document.head.appendChild(styleElement);
+  }
+}
+
+export default NotificationCenter;

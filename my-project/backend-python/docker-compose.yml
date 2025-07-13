@@ -1,0 +1,17 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend-python
+      dockerfile: Dockerfile
+    volumes:
+      - ./backend-python:/app
+    ports:
+      - "5000:5000"
+    environment:
+      - PYTHONUNBUFFERED=1
+
+networks:
+  default:
+    driver: bridge
