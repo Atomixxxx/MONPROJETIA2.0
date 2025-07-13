@@ -12,5 +12,6 @@ USER sandbox
 WORKDIR /app
 
 # Copier et exécuter le script
-COPY script.py .
+COPY ../backend_stable_enhanced.py .
+
 CMD ["timeout", "30s", "python", "script.py"]
