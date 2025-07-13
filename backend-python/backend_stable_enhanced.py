@@ -599,4 +599,8 @@ if __name__ == "__main__":
     logger.info(f"🔗 Documentation API: http://localhost:8002/docs")
     logger.info(f"🔧 Debug agents: http://localhost:8002/debug/agents")
     
-    uvicorn.run(**config)
+# Dans backend-python/backend_stable_enhanced.py
+# LIGNE FINALE, remplacer:
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)  # ← Changer 8002 → 8000
