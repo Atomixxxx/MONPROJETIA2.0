@@ -3,7 +3,8 @@ FROM python:3.11-slim
 # Installer timeout et nettoyer
 RUN useradd -m -u 1000 sandbox && \
     apt-get update && \
-    apt-get install -y --no-install-recommends timeout && \
+    apt-get install -y --no-install-recommends coreutils &&
+
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
