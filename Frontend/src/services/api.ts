@@ -6,8 +6,11 @@ export class ApiService {
   private enableMock: boolean;
 
   constructor() {
-    this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
-    this.wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8000/ws';
+// Dans Frontend/src/services/api.ts
+constructor() {
+  this.baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:8002';  // ← 8000 → 8002
+  this.wsUrl = import.meta.env.VITE_WS_URL || 'ws://localhost:8002/ws';    // ← 8000 → 8002
+}
     this.enableMock = import.meta.env.VITE_ENABLE_MOCK !== 'false';
   }
 
