@@ -1,19 +1,17 @@
 FROM python:3.11-slim
 
-# Installer timeout et nettoyer
+# Installer coreutils (pour timeout) et créer l'utilisateur non root
 RUN useradd -m -u 1000 sandbox && \
     apt-get update && \
-    apt-get install -y --no-install-recommends coreutils &&
-
+    apt-get install -y --no-install-recommends coreutils && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Utilisateur non-privilégié
 USER sandbox
 WORKDIR /app
 
-# Copier et exécuter le script
+# Copier le script principal (adapté à ton projet)
 COPY ../backend_stable_enhanced.py .
 
+# Lancer le script avec un timeout de 30 secondes
 CMD ["timeout", "30s", "python", "backend_stable_enhanced.py"]
-
